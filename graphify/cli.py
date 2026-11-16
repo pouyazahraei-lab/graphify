@@ -6205,6 +6205,11 @@ def dispatch_command(cmd: str) -> None:
         _wja(out_path2, merged2, ensure_ascii=False)
         print(f"Merged: {len(merged2['nodes'])} nodes, {len(merged2['edges'])} edges")
 
+    elif cmd == "memory":
+        # Local persistent knowledge memory (graphify/memory). Kept as a
+        # self-contained subcommand so it cannot affect the code-graph paths.
+        from graphify.memory.cli import main as _memory_main
+        sys.exit(_memory_main(sys.argv[2:]))
     elif Path(cmd).exists() or cmd in (".", "..") or cmd.startswith(("./", "../", "/", "~")):
         # User ran `graphify <path>` directly — treat as `graphify extract <path>`.
         # Common when following the PowerShell note in README (`graphify .`) or
