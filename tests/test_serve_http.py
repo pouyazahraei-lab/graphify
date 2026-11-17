@@ -203,15 +203,21 @@ def _call_tool(client, headers, name, arguments, rid) -> str:
 
 
 def test_project_path_is_optional_on_every_tool(tmp_path):
-    """Multi-project support is additive: every tool gains an optional
-    project_path, and none of them makes it required."""
+    """Multi-project support is additive: every legacy tool gains an optional
+    project_path, and none of them makes it required. The knowledge tools
+    (graphify.mcp_knowledge) intentionally take no path at all."""
     app = serve_mod._build_http_app(_graph_file(tmp_path), json_response=True)
     with _client(app) as client:
         headers = _init_session(client)
         resp = client.post("/mcp", headers=headers,
                             json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+        from graphify.mcp_knowledge import NEW_TOOL_NAMES
         for tool in resp.json()["result"]["tools"]:
             props = tool["inputSchema"].get("properties", {})
+            if tool["name"] in NEW_TOOL_NAMES:
+                # Knowledge tools only ever serve the configured graph.
+                assert "project_path" not in props, f"{tool['name']} must not take project_path"
+                continue
             assert "project_path" in props, f"{tool['name']} missing project_path"
             assert "project_path" not in tool["inputSchema"].get("required", [])
 

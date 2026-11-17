@@ -3118,6 +3118,13 @@ def _build_server(graph_path: str):
                     "this server was started with."
                 ),
             }
+        # Knowledge-oriented tool surface (graphify.mcp_knowledge). Appended after
+        # the project_path injection on purpose: these tools never take a path.
+        from graphify import mcp_knowledge as _mk
+        _tools.extend(
+            types.Tool(name=_s["name"], description=_s["description"], inputSchema=_s["inputSchema"])
+            for _s in _mk.tool_specs()
+        )
         return _tools
 
     def _tool_query_graph(arguments: dict) -> str:
@@ -3369,6 +3376,20 @@ def _build_server(graph_path: str):
         "triage_prs": _tool_triage_prs,
     }
 
+    def _install_knowledge_tools() -> None:
+        from graphify import mcp_knowledge as _mk
+
+        _handlers["search_knowledge"] = lambda a: _mk.search_knowledge(G, a, ToolError)
+        _handlers["query_knowledge"] = lambda a: _tool_query_graph(_mk.normalize_query_args(a, ToolError))
+        _handlers["get_entity"] = lambda a: _tool_get_node(_mk.normalize_entity_args(a, ToolError))
+        _handlers["get_related_entities"] = lambda a: _tool_get_neighbors(_mk.normalize_entity_args(a, ToolError))
+        _handlers["get_graph_statistics"] = lambda a: _tool_graph_stats(a)
+        _handlers["rebuild_knowledge_graph"] = lambda a: _mk.rebuild_knowledge_graph(
+            _default_graph_path, a, ToolError
+        )
+
+    _install_knowledge_tools()
+
     def _load_community_labels() -> dict[int, str]:
         labels_path = Path(active_graph_path).parent / ".graphify_labels.json"
         if labels_path.exists():
@@ -3448,6 +3469,12 @@ def _build_server(graph_path: str):
         if not handler:
             return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
         try:
+            from graphify.mcp_knowledge import NEW_TOOL_NAMES
+            if name in NEW_TOOL_NAMES:
+                if project_path:
+                    raise ToolError("project_path is not supported by this tool; it only serves the configured graph.")
+                if name == "rebuild_knowledge_graph":
+                    return [types.TextContent(type="text", text=handler(arguments))]
             _select_graph(project_path)  # bind G/communities to the target graph
             return [types.TextContent(type="text", text=handler(arguments))]
         except ToolError:
